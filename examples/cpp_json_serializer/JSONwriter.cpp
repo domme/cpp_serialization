@@ -72,27 +72,6 @@
         myTypeStack.pop();
       }
     } break;
-    case EBaseDataType::Serializable:
-    case EBaseDataType::SerializablePtr:
-    {
-      MetaTable* metaTable = static_cast<MetaTable*>(aDataType.myUserData);
-      if (!metaTable->isValid(anObject))
-      {
-        currJsonVal = NULL;
-        break;
-      }
-
-      const char* typeName = metaTable->getTypeName(anObject);
-      unsigned int instanceHash = metaTable->getHash(anObject);
-
-      currJsonVal["Type"] = typeName;
-
-      if (instanceHash != 0u)
-        currJsonVal["Hash"] = instanceHash;
-      
-      metaTable->Serialize(this, anObject);
-    } break;
-
     case EBaseDataType::Int:
     {
       currJsonVal = *static_cast<int*>(anObject);
