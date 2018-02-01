@@ -99,12 +99,7 @@
   struct MetaTableStructOrClass
   {
     virtual void Serialize(Serializer* aSerializer, void* anObject) = 0;
-  };
-//---------------------------------------------------------------------------//
-  struct MetaTableDescription
-  {
-    virtual void Serialize(Serializer* aSerializer, void* anObject) = 0;
-    virtual void SetFromOtherDesc(void* anObject, void* anOtherObject) = 0;
+    virtual void SetFromOther(void* anObject, const void* anOtherObject) = 0;
   };
 //---------------------------------------------------------------------------//
   struct MetaTableArray
@@ -139,28 +134,15 @@
         static_cast<T*>(anObject)->Serialize(aSerializer);
       }
 
+      void SetFromOther(void* anObject, const void* anOtherObject) override
+      {
+        *static_cast<T*>(anObject) = *static_cast<const T*>(anOtherObject);
+      }
+
       static MetaTableStructOrClassImpl<T> ourVTable;
     };
     template<class T>
     MetaTableStructOrClassImpl<T> MetaTableStructOrClassImpl<T>::ourVTable;
-//---------------------------------------------------------------------------//
-    template<class T>
-    struct MetaTableDescriptionImpl : public MetaTableDescription
-    {
-      void Serialize(Serializer* aSerializer, void* anObject) override
-      {
-        static_cast<T*>(anObject)->Serialize(aSerializer);
-      }
-
-      void SetFromOtherDesc(void* anObject, void* anOtherObject) override
-      {
-        *static_cast<T*>(anObject) = *static_cast<T*>(anOtherObject);
-      }
-
-      static MetaTableDescriptionImpl<T> ourVTable;
-    };
-    template<class T>
-    MetaTableDescriptionImpl<T> MetaTableDescriptionImpl<T>::ourVTable;
 //---------------------------------------------------------------------------//
     template<class T>
     struct MetaTableDescribedImpl : public MetaTableDescribed
@@ -315,7 +297,7 @@
   {
     static DataType get()
     {
-      return DataType(EBaseDataType::Description, &Internal::MetaTableDescriptionImpl<T>::ourVTable);
+      return DataType(EBaseDataType::Description, &Internal::MetaTableStructOrClassImpl<T>::ourVTable);
     }
   };
 //---------------------------------------------------------------------------//
