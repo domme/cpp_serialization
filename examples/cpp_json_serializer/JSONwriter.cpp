@@ -72,6 +72,24 @@
         myTypeStack.pop();
       }
     } break;
+
+    case EBaseDataType::Serializable:
+    {
+      MetaTableDescribed* metaTable = static_cast<MetaTableDescribed*>(aDataType.myUserData);
+      if (!metaTable->IsValid(anObject))
+      {
+        currJsonVal = NULL;
+        break;
+      }
+
+      std::shared_ptr<Description> desc = metaTable->GetDescription(anObject);
+
+      currJsonVal["Type"] = metaTable->GetTypeName(anObject);
+      currJsonVal["Hash"] = desc->GetHash();
+
+      Serialize(desc.get(), "Description");
+    } break;
+
     case EBaseDataType::Int:
     {
       currJsonVal = *static_cast<int*>(anObject);
