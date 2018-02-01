@@ -16,8 +16,8 @@
     {
       unsigned int myVersion;
       
-      Json::Value myDescribedObjects;
-      std::vector<unsigned int> myDescribedObjectHashes;
+      Json::Value myInstances;
+      std::vector<unsigned int> myInstanceHashes;
     };
 
     bool serializeImpl(DataType aDataType, void* anObject, const char* aName) override;
@@ -25,8 +25,8 @@
     void beginName(const char* aName, bool anIsArray) override;
     void endName() override;
 
-    void AddDescribedObject(const char* aTypeName, const Json::Value& aDescriptionVal, unsigned int aHash);
-    bool HasDescribedObject(unsigned int aHash);
+    void AddStoredInstance(const char* aTypeName, const Json::Value& aDescriptionVal, unsigned int aHash);
+    bool HasInstanceStored(unsigned int aHash);
     
     void storeHeader(Json::Value& aValue) const;
 

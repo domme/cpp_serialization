@@ -21,19 +21,6 @@
      enum {value = sizeof(Test<T>(0)) == sizeof(Yes) };
   };
 //---------------------------------------------------------------------------//
-  template <typename T>
-  class HasGetDescriptionMemFn
-  {
-    typedef char Yes;
-    typedef long No;
-
-    template <typename C> static Yes Test(decltype(&C::GetDescription));
-    template <typename C> static No Test(...);
-
-  public:
-    enum { value = sizeof(Test<T>(0)) == sizeof(Yes) };
-  };
-//---------------------------------------------------------------------------//
   class Serializer;
 //---------------------------------------------------------------------------//
   enum class EBaseDataType
@@ -49,8 +36,6 @@
     CString,
     Array,
     StructOrClass,
-    Description,
-    Described,
     Serializable,
   };
 //---------------------------------------------------------------------------//
@@ -63,7 +48,7 @@
     void* myUserData;  // pointer to meta-table for complex types
   };
 //---------------------------------------------------------------------------//
-  template<class T, typename IsEnumT = void, typename HasSerializationMethodT = void, typename HasGetDescriptionMethodT = void, typename IsSerializable = void>
+  template<class T, typename IsEnumT = void, typename HasSerializationMethodT = void, typename IsSerializable = void>
   struct Get_DataType { };  // Dummy base type, should never be instantiated
 //---------------------------------------------------------------------------//
   // Special case for enum types
@@ -112,18 +97,6 @@
     virtual DataType getElementDataType() = 0;
   };
 //---------------------------------------------------------------------------//
-  struct MetaTableDescribed
-  {
-    virtual ~MetaTableDescribed() {}
-    virtual void Create(void* anObject, Factory* aFactory, const char* aTypeName, const Description& aDescription, void* aUserData) = 0;
-    virtual const char* GetTypeName(void* anObject) = 0;
-    virtual unsigned int GetHash(void* anObject) = 0;
-    virtual bool IsValid(void* anObject) = 0;
-    virtual void Invalidate(void* anObject) = 0;
-    virtual std::shared_ptr<Description> GetDescription(void* anObject) = 0;
-    virtual std::shared_ptr<Description> CreateDescription() = 0;
-  };
-
   struct MetaTableSerializable
   {
     virtual ~MetaTableSerializable() {}
@@ -134,7 +107,6 @@
     virtual bool IsValid(void* anObject) = 0;
     virtual void Invalidate(void* anObject) = 0;
   };
-
 //---------------------------------------------------------------------------//
   namespace Internal
   {
@@ -157,61 +129,9 @@
     template<class T>
     MetaTableStructOrClassImpl<T> MetaTableStructOrClassImpl<T>::ourVTable;
 //---------------------------------------------------------------------------//
-    template<class T>
-    struct MetaTableDescribedImpl : public MetaTableDescribed
-    { };  // Default template for described objects (dummy - should never be instanciated)
+
 //---------------------------------------------------------------------------//
-     // Shared pointers to descibed objects. This is the only specialization we provide for described objects. Feel free to add more (e.g. raw pointers, unique ptrs, ...)
-    template<class T>
-    struct MetaTableDescribedImpl<std::shared_ptr<T>> : public MetaTableDescribed
-    {
-      typedef std::result_of_t<decltype(&T::GetDescription)(T)> DescT;
-
-      void Create(void* anObject, Factory* aFactory, const char* aTypeName, const Description& aDescription, void* aUserData) override
-      {
-        std::shared_ptr<T> createdObject = std::static_pointer_cast<T>(aFactory->Create(aTypeName, aDescription, aUserData));
-        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        serializable->swap(createdObject);
-      }
-
-      const char* GetTypeName(void* anObject) override
-      {
-        return GetDescription(anObject)->GetTypeName();
-      }
-
-      unsigned int GetHash(void* anObject) override
-      {
-        return GetDescription(anObject)->GetHash();
-      }
-
-      bool IsValid(void* anObject) override
-      {
-        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        return (*serializable) != nullptr;
-      }
-
-      void Invalidate(void* anObject) override
-      {
-        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        serializable->reset();
-      }
-
-      std::shared_ptr<Description> GetDescription(void* anObject) override 
-      { 
-        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        std::shared_ptr<DescT> desc(new DescT((*serializable)->GetDescription()));
-        return desc;
-      }
-
-      std::shared_ptr<Description> CreateDescription() override
-      {
-        return std::make_shared<DescT>();
-      }
-      
-      static MetaTableDescribedImpl<std::shared_ptr<T>> ourVTable;
-    };
-    template<class T>
-    MetaTableDescribedImpl<std::shared_ptr<T>> MetaTableDescribedImpl<std::shared_ptr<T>>::ourVTable;
+// Serializable Meta Tables
 //---------------------------------------------------------------------------//
     template<class T>
     struct MetaTableSerializableImpl : public MetaTableSerializable
@@ -228,6 +148,11 @@
         serializable->swap(createdObject);
 
         // Still needs to be serialized when loading!
+      }
+
+      void Serialize(Serializer* aSerializer, void* anObject) override
+      {
+        static_cast<T*>(anObject)->Serialize(aSerializer);
       }
 
       const char* GetTypeName(void* anObject) override
@@ -340,23 +265,23 @@
   template<class T>
   struct Get_DataType<T,
     void,  // No enum type
-    std::enable_if_t<HasSerializeMemFn<T>::value && !std::is_base_of<Description, T>::value>, // Serialize() but no Description
-    void>  // No GetDescription()
+    std::enable_if_t<HasSerializeMemFn<T>::value>> // Serialize()
   {
     static DataType get()
     {
       return DataType(EBaseDataType::StructOrClass, &Internal::MetaTableStructOrClassImpl<T>::ourVTable);
     }
   };
-  //---------------------------------------------------------------------------//
-  // Special case if T is a Description
+//---------------------------------------------------------------------------//
   template<class T>
-  struct Get_DataType<T, void,
-    std::enable_if_t<std::is_base_of<Description, T>::value>>
+  struct Get_DataType<std::shared_ptr<T>,
+    void,  // No enum type
+    std::enable_if_t<HasSerializeMemFn<T>::value>, // Serialize() but no Description
+    std::enable_if_t<T::IsSerializable::Val>>
   {
     static DataType get()
     {
-      return DataType(EBaseDataType::Description, &Internal::MetaTableStructOrClassImpl<T>::ourVTable);
+      return DataType(EBaseDataType::Serializable, &Internal::MetaTableSerializableImpl<std::shared_ptr<T>>::ourVTable);
     }
   };
 //---------------------------------------------------------------------------//
@@ -377,35 +302,14 @@
       return DataType(EBaseDataType::Array, &Internal::MetaTableArrayImpl<T[Capacity]>::ourVTable);
     }
   };
-  //---------------------------------------------------------------------------//
-  // Specialization for shared_ptrs to described objects
-  template<class T>
-  struct Get_DataType<std::shared_ptr<T>,
-    void, // No enum type
-    void, // No Serialize()
-    std::enable_if_t<HasGetDescriptionMemFn<T>::value>>  // GetDescription() 
-  {
-    static DataType get()
-    {
-      return DataType(EBaseDataType::Described, &Internal::MetaTableDescribedImpl<std::shared_ptr<T>>::ourVTable);
-    }
-  };
-
-  template<class T>
-  struct Get_DataType<T,
-    void,  // No enum type
-    std::enable_if_t<HasSerializeMemFn<T>::value && !std::is_base_of<Description, T>::value>, // Serialize() but no Description
-    void, // No GetDescription()
-    std::enable_if_t<T::IsSerializable::Val>>
-  {
-    static DataType get()
-    {
-      return DataType(EBaseDataType::Serializable, &Internal::MetaTableSerializableImpl<T>::ourVTable);
-    }
-  };
 //---------------------------------------------------------------------------//
-
 #define SERIALIZABLE(T) \
 public: \
   enum IsSerializable { Val = true }; \
-  virtual const char* GetTypeName() const { return #T; } \
+  const char* GetTypeName() const { return #T; }
+//---------------------------------------------------------------------------//
+#define SERIALIZABLE_VIRTUAL(T) \
+public: \
+  enum IsSerializable { Val = true }; \
+  virtual const char* GetTypeName() const { return #T; }
+//---------------------------------------------------------------------------//

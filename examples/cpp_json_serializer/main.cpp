@@ -15,11 +15,11 @@ struct ExampleStruct
   std::string myStrVal;
 };
 
-struct Description1 : Description
+struct SerializableClass
 {
-  const char* GetTypeName() const override { return "Described1"; }
-  unsigned GetHash() const override { return std::hash<int>()(myIntVal) ^ std::hash<float>()(myFloatVal); }
-  void Serialize(Serializer* aSerializer) override
+  SERIALIZABLE(SerializableClass);
+
+  void Serialize(Serializer* aSerializer)
   {
     aSerializer->Serialize(&myIntVal, "myIntVal");
     aSerializer->Serialize(&myFloatVal, "myFloatVal");
@@ -27,44 +27,6 @@ struct Description1 : Description
 
   int myIntVal;
   float myFloatVal;
-};
-
-struct Described1
-{
-  Description1 GetDescription() const
-  {
-    Description1 desc;
-    desc.myIntVal = myIntVal;
-    desc.myFloatVal = myFloatVal;
-    return desc;
-  }
-
-  int myIntVal;
-  float myFloatVal;
-};
-
-struct Description2 : Description
-{
-  const char* GetTypeName() const override { return "Described2"; }
-  unsigned GetHash() const override { return myDescribed1.GetHash(); }
-  void Serialize(Serializer* aSerializer) override
-  {
-    aSerializer->Serialize(&myDescribed1, "myDescribed1");
-  }
-
-  Description1 myDescribed1;
-};
-
-struct Described2
-{
-  Description2 GetDescription() const
-  {
-    Description2 desc;
-    desc.myDescribed1 = myDescribed1->GetDescription();
-    return desc;
-  }
-
-  std::shared_ptr<Described1> myDescribed1;
 };
 
 int main(int argc, char **argv, char **envp)
@@ -75,12 +37,7 @@ int main(int argc, char **argv, char **envp)
   float test_float = 0.245f;
   ExampleStruct test_struct{ 2, "SomeString" };
 
-  std::shared_ptr<Described1> described1 = std::make_shared<Described1>();
-  described1->myIntVal = 4;
-  described1->myFloatVal = 0.7821f;
-
-  std::shared_ptr<Described2> described2 = std::make_shared<Described2>();
-  described2->myDescribed1 = described1;
+  std::shared_ptr<SerializableClass> serializable = std::make_shared<SerializableClass>();
 
   {
     JSONwriter writer("example_builtin_types.json");
@@ -89,7 +46,7 @@ int main(int argc, char **argv, char **envp)
 
     writer.Serialize(&test_struct, "test_struct");
 
-    writer.Serialize(&described2, "described2");
+    writer.Serialize(&serializable, "serializable");
   }
     
   system("PAUSE");

@@ -10,7 +10,7 @@
     myArchive.open(anArchivePath, archiveFlags);
 
     myHeader = RootHeader();
-    myHeader.myDescribedObjects = Json::Value(Json::arrayValue);
+    myHeader.myInstances = Json::Value(Json::arrayValue);
     JSONwriter::beginName("Root", false);
   }
 //---------------------------------------------------------------------------//
@@ -36,58 +36,31 @@
       MetaTableStructOrClass* metaTable = static_cast<MetaTableStructOrClass*>(aDataType.myUserData);
       metaTable->Serialize(this, anObject);
     } break;
-    case EBaseDataType::Described:
+    case EBaseDataType::Serializable:
     {
-      MetaTableDescribed* metaTable = static_cast<MetaTableDescribed*>(aDataType.myUserData);
+      MetaTableSerializable* metaTable = static_cast<MetaTableSerializable*>(aDataType.myUserData);
       if (!metaTable->IsValid(anObject))
       {
         currJsonVal = NULL;
         break;
       }
 
-      std::shared_ptr<Description> desc = metaTable->GetDescription(anObject);
-      
-      currJsonVal["Type"] = metaTable->GetTypeName(anObject);
-      currJsonVal["Hash"] = desc->GetHash();
-      
-      Serialize(desc.get(), "Description");
-    } break;
-    case EBaseDataType::Description:
-    {
-      Description* desc = static_cast<Description*>(anObject);
+      unsigned int hash = metaTable->GetHash(anObject);
+      const char* typeName = metaTable->GetTypeName(anObject);
 
-      const unsigned int descHash = desc->GetHash();
+      currJsonVal["Type"] = typeName;
+      currJsonVal["Hash"] = hash;
 
-      currJsonVal["Type"] = desc->GetTypeName();
-      currJsonVal["Hash"] = descHash;
-      
-      if (!HasDescribedObject(descHash))
+      if (!HasInstanceStored(hash))
       {
         myTypeStack.push(Json::Value(Json::objectValue));
         Json::Value& descVal = myTypeStack.top();
-        descVal["Type"] = desc->GetTypeName();
-        descVal["Hash"] = descHash;
-        desc->Serialize(this);
-        AddDescribedObject(desc->GetTypeName(), descVal, descHash);
+        descVal["Type"] = typeName;
+        descVal["Hash"] = hash;
+        metaTable->Serialize(this, anObject);
+        AddStoredInstance(metaTable->GetTypeName(anObject), descVal, hash);
         myTypeStack.pop();
       }
-    } break;
-
-    case EBaseDataType::Serializable:
-    {
-      MetaTableDescribed* metaTable = static_cast<MetaTableDescribed*>(aDataType.myUserData);
-      if (!metaTable->IsValid(anObject))
-      {
-        currJsonVal = NULL;
-        break;
-      }
-
-      std::shared_ptr<Description> desc = metaTable->GetDescription(anObject);
-
-      currJsonVal["Type"] = metaTable->GetTypeName(anObject);
-      currJsonVal["Hash"] = desc->GetHash();
-
-      Serialize(desc.get(), "Description");
     } break;
 
     case EBaseDataType::Int:
@@ -173,15 +146,15 @@
     }
   }
 //---------------------------------------------------------------------------//
-  void JSONwriter::AddDescribedObject(const char* aTypeName, const Json::Value& aDescriptionVal, unsigned int aHash)
+  void JSONwriter::AddStoredInstance(const char* aTypeName, const Json::Value& aDescriptionVal, unsigned int aHash)
   {
-    myHeader.myDescribedObjects.append(aDescriptionVal);
-    myHeader.myDescribedObjectHashes.push_back(aHash);
+    myHeader.myInstances.append(aDescriptionVal);
+    myHeader.myInstanceHashes.push_back(aHash);
   }
 //---------------------------------------------------------------------------//
-  bool JSONwriter::HasDescribedObject(unsigned aHash)
+  bool JSONwriter::HasInstanceStored(unsigned aHash)
   {
-    for (unsigned int storedHash : myHeader.myDescribedObjectHashes)
+    for (unsigned int storedHash : myHeader.myInstanceHashes)
       if (storedHash == aHash)
         return true;
 
@@ -191,6 +164,6 @@
   void JSONwriter::storeHeader(Json::Value& aValue) const
   {
     aValue["myVersion"] = myHeader.myVersion;
-    aValue["myDescribedObjects"] = myHeader.myDescribedObjects;
+    aValue["myInstances"] = myHeader.myInstances;
   }
 //---------------------------------------------------------------------------//
