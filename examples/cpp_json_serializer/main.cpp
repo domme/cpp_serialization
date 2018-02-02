@@ -17,13 +17,15 @@ struct ExampleStruct
 
 struct SerializableClass
 {
-  SERIALIZABLE(SerializableClass);
+  SERIALIZABLE();
 
   void Serialize(Serializer* aSerializer)
   {
     aSerializer->Serialize(&myIntVal, "myIntVal");
     aSerializer->Serialize(&myFloatVal, "myFloatVal");
   }
+
+  const char* GetTypeName() const { return "SerializableClass"; }
 
   int myIntVal;
   float myFloatVal;

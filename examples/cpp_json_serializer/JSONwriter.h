@@ -26,7 +26,7 @@
     void endName() override;
 
     void AddStoredInstance(const char* aTypeName, const Json::Value& aDescriptionVal, unsigned int aHash);
-    bool HasInstanceStored(unsigned int aHash);
+    bool HasInstanceStored(unsigned int aHash) const;
     
     void storeHeader(Json::Value& aValue) const;
 

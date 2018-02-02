@@ -33,9 +33,6 @@
     <ClInclude Include="ExampleFactory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Description.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="json\json-forwards.h">
       <Filter>Header Files</Filter>
     </ClInclude>

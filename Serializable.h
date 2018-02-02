@@ -2,7 +2,6 @@
 
 #include <memory>
 
-#include "Description.h"
 #include "Factory.h"
 #include <vector>
 #include <cassert>
@@ -152,13 +151,13 @@
 
       void Serialize(Serializer* aSerializer, void* anObject) override
       {
-        static_cast<T*>(anObject)->Serialize(aSerializer);
+        static_cast<T*>(anObject)->_serialize(aSerializer);
       }
 
       const char* GetTypeName(void* anObject) override
       {
         std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        return (*serializable)->GetTypeName();
+        return (*serializable)->_getTypeName();
       }
 
       unsigned int GetHash(void* anObject) override
@@ -303,13 +302,9 @@
     }
   };
 //---------------------------------------------------------------------------//
-#define SERIALIZABLE(T) \
+#define SERIALIZABLE() \
 public: \
   enum IsSerializable { Val = true }; \
-  const char* GetTypeName() const { return #T; }
-//---------------------------------------------------------------------------//
-#define SERIALIZABLE_VIRTUAL(T) \
-public: \
-  enum IsSerializable { Val = true }; \
-  virtual const char* GetTypeName() const { return #T; }
+  const char* _getTypeName() const { return this->GetTypeName(); } \
+  void _serialize(Serializer* aSerializer) { this->Serialize(aSerializer); }
 //---------------------------------------------------------------------------//

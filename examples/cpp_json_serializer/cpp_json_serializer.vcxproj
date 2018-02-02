@@ -114,7 +114,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Description.h" />
     <ClInclude Include="..\..\Factory.h" />
     <ClInclude Include="..\..\Serializable.h" />
     <ClInclude Include="..\..\Serializer.h" />

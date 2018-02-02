@@ -1,4 +1,5 @@
 #include "JSONwriter.h"
+#include <Serializable.h>
 
 //---------------------------------------------------------------------------//
   JSONwriter::JSONwriter(const std::string& anArchivePath) 
@@ -48,7 +49,6 @@
       unsigned int hash = metaTable->GetHash(anObject);
       const char* typeName = metaTable->GetTypeName(anObject);
 
-      currJsonVal["Type"] = typeName;
       currJsonVal["Hash"] = hash;
 
       if (!HasInstanceStored(hash))
@@ -152,7 +152,7 @@
     myHeader.myInstanceHashes.push_back(aHash);
   }
 //---------------------------------------------------------------------------//
-  bool JSONwriter::HasInstanceStored(unsigned aHash)
+  bool JSONwriter::HasInstanceStored(unsigned aHash) const
   {
     for (unsigned int storedHash : myHeader.myInstanceHashes)
       if (storedHash == aHash)
