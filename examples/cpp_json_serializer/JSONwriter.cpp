@@ -5,10 +5,7 @@
   JSONwriter::JSONwriter(const std::string& anArchivePath) 
     : Serializer(ESerializationMode::STORE)
   {
-    unsigned int archiveFlags = 0u;
-    archiveFlags |= std::ios::out;
-
-    myArchive.open(anArchivePath, archiveFlags);
+    myArchive.open(anArchivePath, std::ios::out);
 
     myHeader = RootHeader();
     myHeader.myInstances = Json::Value(Json::arrayValue);

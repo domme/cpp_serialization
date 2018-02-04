@@ -2,66 +2,36 @@
 
 #if 1
 
-#include "GpuProgram.h"
-
-#include "Model.h"
-
-#include "ObjectName.h"
-
-namespace Fancy { namespace IO {
 //---------------------------------------------------------------------------//
   Json::Value nullVal = Json::Value(NULL);
 //---------------------------------------------------------------------------//
-  JSONreader::JSONreader(const String& anArchivePath, GraphicsWorld& aGraphicsWorld) 
+  JSONreader::JSONreader(const std::string& anArchivePath, Factory* aFactory) 
     : Serializer(ESerializationMode::LOAD)
-    , myGraphicsWorld(aGraphicsWorld)
+    , myFactory(aFactory)
   {
-    uint archiveFlags = 0u;
-
-    archiveFlags |= std::ios::in;
-
-    String archivePath = anArchivePath + ".json";
-    myArchive.open(archivePath, archiveFlags);
+    myArchive.open(anArchivePath, std::ios::in);
 
     if (myArchive.good())
     {
       myArchive >> myDocumentVal;
+      myTypeStack.push(&myDocumentVal);
+      loadHeader();
     }
-
-    myTypeStack.push(&myDocumentVal);
-    loadHeader();
   }
 //---------------------------------------------------------------------------//
-  JSONreader::~JSONreader()
+  JSONreader::~JSONreader() 
   {
     
   }
 //---------------------------------------------------------------------------//
-  void JSONreader::SerializeDescription(DescriptionBase* aDescription)
+  Json::Value* JSONreader::GetInstanceVal(unsigned int aHash) const
   {
-    aDescription->Serialize(this);
-  }
-//---------------------------------------------------------------------------//
-  DescriptionBase* JSONreader::GetResourceDesc(uint64 aHash)
-  {
-    for (DescriptionBase* desc : myHeader.myLoadedDecscs)
-      if (desc->GetHash() == aHash)
-        return desc;
-
-    return nullptr;
-  }
-//---------------------------------------------------------------------------//
-  Json::Value* JSONreader::GetResourceVal(const ObjectName& aTypeName, uint64 aHash) const
-  {
-    for (int i = 0; i < (int) myHeader.myResources->size(); ++i)
+    for (int i = 0; i < (int) myHeader.myInstances->size(); ++i)
     {
-      Json::ArrayIndex index(i);
-      Json::Value& val = (*myHeader.myResources)[index];
-      if (val["Type"].asString() == aTypeName.toString() 
-       && val["Hash"].asUInt64() == aHash)
-      {
+      const Json::ArrayIndex index(i);
+      Json::Value& val = (*myHeader.myInstances)[index];
+      if (val["Hash"].asUInt64() == aHash)
         return &val;
-      }
     }
 
     return nullptr;
@@ -81,186 +51,74 @@ namespace Fancy { namespace IO {
       MetaTableStructOrClass* metaTable = static_cast<MetaTableStructOrClass*>(aDataType.myUserData);
       metaTable->Serialize(this, anObject);
     } break;
-    case EBaseDataType::ResourceDesc:
+    case EBaseDataType::Serializable:
     {
-      DescriptionBase* desc = static_cast<DescriptionBase*>(anObject);
-
-      ObjectName typeName = ObjectName(currJsonVal["Type"].asString());
-      uint64 hash = currJsonVal["Hash"].asUInt64();
-
-      if (DescriptionBase* loadedDesc = GetResourceDesc(hash))
-      {
-        MetaTableResourceDesc* metaTable = static_cast<MetaTableResourceDesc*>(aDataType.myUserData);
-        metaTable->SetFromOtherDesc(anObject, loadedDesc);
-      }
-      else
-      {
-        Json::Value* jsonValInHeader = GetResourceVal(typeName, hash);
-        ASSERT(jsonValInHeader != nullptr);
-
-        myTypeStack.push(jsonValInHeader);
-        desc->Serialize(this);
-        myTypeStack.pop();
-
-        myHeader.myLoadedDecscs.push_back(desc);
-      }
-    } break;
-    case EBaseDataType::ResourcePtr:
-    {
-      MetaTableResource* metaTable = static_cast<MetaTableResource*>(aDataType.myUserData);
-
+      MetaTableSerializable* metaTable = static_cast<MetaTableSerializable*>(aDataType.myUserData);
       if (currJsonVal.type() == Json::nullValue
-        || ( currJsonVal.type() == Json::intValue && currJsonVal.asInt() == 0))  // nullptrs in arrays will appear as "0"
+        || (currJsonVal.type() == Json::intValue && currJsonVal.asInt() == 0))  // nullptrs in arrays will appear as "0"
       {
         metaTable->Invalidate(anObject);
         break;
       }
 
-      ObjectName typeName = ObjectName(currJsonVal["Type"].asString());
-      uint64 hash = currJsonVal["Hash"].asUInt64();
+      unsigned int hash = currJsonVal["Hash"].asUInt();
 
-      DescriptionBase* description = GetResourceDesc(hash);
-      if (description == nullptr)
+      auto it = myHeader.myCreatedInstances.find(hash);
+      if (it != myHeader.myCreatedInstances.end())
       {
-        SharedPtr<DescriptionBase> newDesc = metaTable->CreateDescription();
-        myHeader.myCreatedDescs.push_back(newDesc);
-        Serialize(newDesc.get(), "Description");
-        description = GetResourceDesc(hash);
-        ASSERT(description != nullptr);
-      }
-
-      metaTable->Create(anObject, typeName, *description, &myGraphicsWorld);
-      
-    } break;
-    case EBaseDataType::Serializable:
-    case EBaseDataType::SerializablePtr:
-    {
-      MetaTable* metaTable = static_cast<MetaTable*>(aDataType.myUserData);
-
-      if (currJsonVal.type() == Json::nullValue)
-      {
-        metaTable->invalidate(anObject);
+        metaTable->SetFromOther(anObject, &(*it));
         break;
       }
 
-      ObjectName typeName = ObjectName(currJsonVal["Type"].asString());
-      uint64 instanceHash = currJsonVal["Hash"].asUInt64();
+      Json::Value* val = GetInstanceVal(hash);
+      assert(val != nullptr);  // Instance wasn't stored properly. Should never happen
 
-      bool wasCreated = false;
-      metaTable->create(anObject, &myGraphicsWorld, typeName, wasCreated, instanceHash);
+      const char* typeName = (*val)["Type"].asCString();
+      metaTable->Create(anObject, myFactory, typeName);
 
-      if (wasCreated)
-        metaTable->Serialize(this, anObject);
+      // Serialize the new object
+      myTypeStack.push(val);
+      metaTable->Serialize(this, anObject);
+      myTypeStack.pop();
 
+      myHeader.myCreatedInstances[hash] = *static_cast<std::shared_ptr<void>*>(anObject);
     } break;
-
     case EBaseDataType::Int:
     {
       *static_cast<int*>(anObject) = currJsonVal.asInt();
     } break;
-
     case EBaseDataType::Uint:
     {
-      *static_cast<uint*>(anObject) = currJsonVal.asUInt();
+      *static_cast<unsigned int*>(anObject) = currJsonVal.asUInt();
     } break;
-
-    case EBaseDataType::Uint8:
-    {
-      uint val32 = currJsonVal.asUInt();
-      *static_cast<uint8*>(anObject) = static_cast<uint8>(val32);
-    } break;
-
-    case EBaseDataType::Uint16:
-    {
-      uint val32 = currJsonVal.asUInt();
-      *static_cast<uint16*>(anObject) = static_cast<uint16>(val32);
-    } break;
-
-    case EBaseDataType::Uint64:
-    {
-      uint64 val = currJsonVal.asUInt64();
-      *static_cast<uint64*>(anObject) = static_cast<uint64>(val);
-    } break;
-
     case EBaseDataType::Float:
     {
       *static_cast<float*>(anObject) = currJsonVal.asFloat();
     } break;
-
     case EBaseDataType::Char:
     {
       *static_cast<char*>(anObject) = currJsonVal.asUInt();
     } break;
-
     case EBaseDataType::Bool:
     {
       *static_cast<bool*>(anObject) = currJsonVal.asBool();
     } break;
-
     case EBaseDataType::String:
     {
-      *static_cast<String*>(anObject) = currJsonVal.asString();
+      *static_cast<std::string*>(anObject) = currJsonVal.asString();
     } break;
-
     case EBaseDataType::CString:
     {
       *static_cast<const char**>(anObject) = currJsonVal.asCString();
     } break;
-
-    case EBaseDataType::ObjectName:
-    {
-      String name = currJsonVal.asString();
-      *static_cast<ObjectName*>(anObject) = name;
-    } break;
-
     case EBaseDataType::Array:
     {
       MetaTableArray* arrayVtable = reinterpret_cast<MetaTableArray*>(aDataType.myUserData);
-      uint numElements = currJsonVal.size();
+      const unsigned int numElements = currJsonVal.size();
       arrayVtable->resize(anObject, numElements);
-      for (uint i = 0u; i < numElements; ++i)
+      for (unsigned int i = 0u; i < numElements; ++i)
         serializeImpl(arrayVtable->getElementDataType(), arrayVtable->getElement(anObject, i), nullptr);
     } break;
-
-    case EBaseDataType::Map: break;
-
-    case EBaseDataType::Vector3:
-    {
-      glm::vec3& val = *static_cast<glm::vec3*>(anObject);
-      for (Json::ArrayIndex i = 0u; i < (uint) val.length(); ++i)
-        val[i] = currJsonVal[i].asFloat();
-    } break;
-
-    case EBaseDataType::Vector4:
-    {
-      glm::vec4& val = *static_cast<glm::vec4*>(anObject);
-      for (Json::ArrayIndex i = 0u; i < (uint) val.length(); ++i)
-        val[i] = currJsonVal[i].asFloat();
-    } break;
-
-    case EBaseDataType::Quaternion:
-    {
-      glm::quat& val = *static_cast<glm::quat*>(anObject);
-      for (Json::ArrayIndex i = 0u; i < (uint) val.length(); ++i)
-        val[i] = currJsonVal[i].asFloat();
-    } break;
-
-    case EBaseDataType::Matrix3x3:
-    {
-      glm::mat3& val = *static_cast<glm::mat3*>(anObject);
-      for (Json::ArrayIndex y = 0u; y < (uint) val.length(); ++y)
-        for (Json::ArrayIndex x = 0u; x < (uint) val[y].length(); ++x)
-          val[x][y] = currJsonVal[y * val[y].length() + x].asFloat();
-    } break;
-
-    case EBaseDataType::Matrix4x4:
-    {
-      glm::mat4& val = *static_cast<glm::mat4*>(anObject);
-      for (Json::ArrayIndex y = 0u; y < (uint) val.length(); ++y)
-        for (Json::ArrayIndex x = 0u; x < (uint) val[y].length(); ++x)
-          val[x][y] = currJsonVal[y * val[y].length() + x].asFloat();
-    } break;
-
     case EBaseDataType::None:
     default:
       handled = false;
@@ -301,7 +159,7 @@ namespace Fancy { namespace IO {
 //---------------------------------------------------------------------------//
   void JSONreader::endName()
   {
-    ASSERT(!myTypeStack.empty(), "Mismatching number of beginType() / endType() calls");
+    assert(!myTypeStack.empty()); //  "Mismatching number of beginType() / endType() calls"
 
     Json::Value& val = *myTypeStack.top();
     if (val.isArray())
@@ -313,10 +171,8 @@ namespace Fancy { namespace IO {
   void JSONreader::loadHeader()
   {
     myHeader.myVersion = myDocumentVal["myVersion"].asUInt();
-    myHeader.myResources = &myDocumentVal["myResources"];
+    myHeader.myInstances = &myDocumentVal["myInstances"];
   }
 //---------------------------------------------------------------------------//
-//---------------------------------------------------------------------------//
-} }  // end of namespace Fancy::IO
 
 #endif

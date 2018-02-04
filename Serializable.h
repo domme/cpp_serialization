@@ -99,7 +99,8 @@
   struct MetaTableSerializable
   {
     virtual ~MetaTableSerializable() {}
-    virtual void Create(void* anObject, Factory* aFactory, const char* aTypeName, void* aUserData) = 0;
+    virtual void Create(void* anObject, Factory* aFactory, const char* aTypeName) = 0;
+    virtual void SetFromOther(void* anObject, const void* anOtherObject) = 0;
     virtual void Serialize(Serializer* aSerializer, void* anObject) = 0;
     virtual const char* GetTypeName(void* anObject) = 0;
     virtual unsigned int GetHash(void* anObject) = 0;
@@ -140,18 +141,26 @@
     template<class T>
     struct MetaTableSerializableImpl<std::shared_ptr<T>> : public MetaTableSerializable
     {
-      void Create(void* anObject, Factory* aFactory, const char* aTypeName, void* aUserData) override
+      void Create(void* anObject, Factory* aFactory, const char* aTypeName) override
       {
-        std::shared_ptr<T> createdObject = std::static_pointer_cast<T>(aFactory->Create(aTypeName, aUserData));
+        std::shared_ptr<T> createdObject = std::static_pointer_cast<T>(aFactory->Create(aTypeName));
         std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
         serializable->swap(createdObject);
 
         // Still needs to be serialized when loading!
       }
 
+      void SetFromOther(void* anObject, const void* anOtherObject) override
+      {
+        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
+        const std::shared_ptr<T>* otherSerializable = static_cast<const std::shared_ptr<T>*>(anOtherObject);
+        (*serializable) = (*otherSerializable);
+      }
+
       void Serialize(Serializer* aSerializer, void* anObject) override
       {
-        static_cast<T*>(anObject)->_serialize(aSerializer);
+        std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
+        (*serializable)->_serialize(aSerializer);
       }
 
       const char* GetTypeName(void* anObject) override

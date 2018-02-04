@@ -1,8 +1,11 @@
 #pragma once
-class ExampleFactory
+#include "Factory.h"
+#include <memory>
+
+class ExampleFactory final : public Factory
 {
 public:
-  ExampleFactory();
-  ~ExampleFactory();
+  std::shared_ptr<void> Create(const char* aTypeName) override;
 };
+
 

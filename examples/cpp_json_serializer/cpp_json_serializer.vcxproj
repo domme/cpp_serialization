@@ -118,6 +118,7 @@
     <ClInclude Include="..\..\Serializable.h" />
     <ClInclude Include="..\..\Serializer.h" />
     <ClInclude Include="ExampleFactory.h" />
+    <ClInclude Include="ExampleTypes.h" />
     <ClInclude Include="JSONreader.h" />
     <ClInclude Include="JSONwriter.h" />
     <ClInclude Include="json\json-forwards.h" />

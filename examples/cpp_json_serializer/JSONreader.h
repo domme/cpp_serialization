@@ -3,9 +3,8 @@
 #if 1
 
 #include "Serializer.h"
-#include "Json/json.h"
+#include "json/json.h"
 
-namespace Fancy { namespace IO {
 //---------------------------------------------------------------------------//
   class JSONreader : public Serializer
   {
@@ -20,9 +19,8 @@ namespace Fancy { namespace IO {
     struct RootHeader
     {
       unsigned int myVersion;
-
       Json::Value* myInstances;
-      std<std::shared_ptr<void>> myCreatedInstances;
+      std::map<unsigned int, std::shared_ptr<void>> myCreatedInstances;
     };
 
     Json::Value* GetInstanceVal(unsigned int aHash) const;
@@ -43,6 +41,5 @@ namespace Fancy { namespace IO {
     std::stack<Json::Value*> myTypeStack;
   };
 //---------------------------------------------------------------------------//  
-} }
 
 #endif

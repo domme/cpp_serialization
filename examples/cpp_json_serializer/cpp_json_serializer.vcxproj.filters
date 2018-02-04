@@ -39,6 +39,9 @@
     <ClInclude Include="json\json.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ExampleTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="JSONreader.cpp">

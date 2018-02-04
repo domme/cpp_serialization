@@ -1,12 +1,12 @@
 #include "ExampleFactory.h"
+#include "ExampleTypes.h"
 
-
-
-ExampleFactory::ExampleFactory()
+std::shared_ptr<void> ExampleFactory::Create(const char* aTypeName)
 {
-}
+  if (strcmp(aTypeName, "SerializableClass") == 0)
+  {
+    return std::make_shared<SerializableClass>();
+  }
 
-
-ExampleFactory::~ExampleFactory()
-{
+  return std::shared_ptr<void>();
 }

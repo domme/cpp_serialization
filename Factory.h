@@ -1,10 +1,9 @@
 #pragma once
 
-class Description;
+#include <memory>
 
 class Factory
 {
 public:
-  virtual std::shared_ptr<void> Create(const char* aTypeName, const Description& aDesc, void* aUserData) = 0;
-  virtual std::shared_ptr<void> Create(const char* aTypeName, void* aUserData) = 0;
+  virtual std::shared_ptr<void> Create(const char* aTypeName) = 0;
 };
