@@ -1,6 +1,6 @@
 #pragma once
 
-#if 0
+#if 1
 
 #include "Serializer.h"
 #include "Json/json.h"
@@ -10,26 +10,22 @@ namespace Fancy { namespace IO {
   class JSONreader : public Serializer
   {
   public:
-    JSONreader(const String& anArchivePath, GraphicsWorld& aGraphicsWorld);
-    virtual ~JSONreader() override;
+    JSONreader(const std::string& anArchivePath, Factory* aFactory);
+    ~JSONreader() override;
 
-    const uint myVersion = 0;
-
-    void SerializeDescription(DescriptionBase* aDescription);
+    const unsigned int myVersion = 0;
 
   protected:
 
     struct RootHeader
     {
-      uint myVersion;
+      unsigned int myVersion;
 
-      Json::Value* myResources;
-      std::vector<SharedPtr<DescriptionBase>> myCreatedDescs;
-      std::vector<DescriptionBase*> myLoadedDecscs;
+      Json::Value* myInstances;
+      std<std::shared_ptr<void>> myCreatedInstances;
     };
 
-    DescriptionBase* GetResourceDesc(uint64 aHash);
-    Json::Value* GetResourceVal(const ObjectName& aTypeName, uint64 aHash) const;
+    Json::Value* GetInstanceVal(unsigned int aHash) const;
 
     bool serializeImpl(DataType aDataType, void* anObject, const char* aName) override;
 
@@ -38,7 +34,7 @@ namespace Fancy { namespace IO {
 
     void loadHeader();
 
-    GraphicsWorld& myGraphicsWorld;
+    Factory* myFactory;
 
     RootHeader myHeader;
     Json::Value myDocumentVal;
