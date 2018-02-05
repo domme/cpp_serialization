@@ -1,8 +1,8 @@
 #pragma once
 
-#include <memory>
-
 #include "Factory.h"
+
+#include <memory>
 #include <vector>
 #include <cassert>
 
@@ -22,6 +22,11 @@
 //---------------------------------------------------------------------------//
   class Serializer;
 //---------------------------------------------------------------------------//
+/* These are the basic data types the serializer switches over.
+   Feel free to add new types here depending on your codebase.
+   As a rule of thumb, a new data type should be added for each type of data
+   that needs special handling during serializaztion. */
+//---------------------------------------------------------------------------//
   enum class EBaseDataType
   {
     None,
@@ -36,7 +41,13 @@
     Array,
     StructOrClass,
     Serializable,
+    
+    // ... Add new datatypes here...
   };
+//---------------------------------------------------------------------------//
+  /* The datatype-struct holds all information necessary to serialize a type.
+     It consists of the base datatype category as well as an (optional) pointer
+     to a meta-table to handle more complex types. */
 //---------------------------------------------------------------------------//
   struct DataType
   {
@@ -47,10 +58,15 @@
     void* myUserData;  // pointer to meta-table for complex types
   };
 //---------------------------------------------------------------------------//
+  /** 
+  The Get_DataType template routes concrete C++-types to serialization-datatypes. 
+  It is further specialized down below and additional specializations can be added
+  if you feel the need for it (e.g. to handle your own (non-stl) container types or
+  other smart-pointer implementations. */
   template<class T, typename IsEnumT = void, typename HasSerializationMethodT = void, typename IsSerializable = void>
   struct Get_DataType { };  // Dummy base type, should never be instantiated
 //---------------------------------------------------------------------------//
-  // Special case for enum types
+  // Specialization for enum types
   template<class T>
   struct Get_DataType<T, 
       typename std::enable_if<std::is_enum<T>::value>::type>
@@ -79,8 +95,14 @@
   DECLARE_DATATYPE(const char*, CString);
   DECLARE_DATATYPE(std::string, String);
   DECLARE_DATATYPE(bool, Bool);
+  // ... Add more basic types if needed (e.g. uint8, 16, Vector- and matrix types,...)
 #undef DECLARE_DATATYPE
 //---------------------------------------------------------------------------//
+  /**
+  Below are several types of 'MetaTables', which are pure-virtual classes that are
+  used by the serializer to perform actions on or get information about serialized types.
+  Feel free to add more categories if you need to handle some more complex data types.
+  */
   struct MetaTableStructOrClass
   {
     virtual void Serialize(Serializer* aSerializer, void* anObject) = 0;
@@ -284,8 +306,8 @@
   template<class T>
   struct Get_DataType<std::shared_ptr<T>,
     void,  // No enum type
-    std::enable_if_t<HasSerializeMemFn<T>::value>, // Serialize() but no Description
-    std::enable_if_t<T::IsSerializable::Val>>
+    std::enable_if_t<HasSerializeMemFn<T>::value>, // Serialize()
+    std::enable_if_t<T::IsSerializable::Val>>  // A serilizable instance
   {
     static DataType get()
     {
