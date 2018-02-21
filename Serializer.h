@@ -25,7 +25,7 @@
           serializeImpl(dataType, anObject, aName);
         }
         
-        template<class T, unsigned int N> void serializeArray(T(&anObject)[N], const char* aName = nullptr)
+        template<class T, unsigned int N> void SerializeArray(T(&anObject)[N], const char* aName = nullptr)
         {
           serializeImpl(Get_DataTypeBuiltinArray<T, N>::get(), anObject, aName);
         }

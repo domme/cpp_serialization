@@ -21,8 +21,6 @@ struct SimpleStruct
 
 struct SerializableClass
 {
-  SERIALIZABLE();
-
   SerializableClass()
     : myIntVal(3)
     , myFloatVal(4.721f) {}
@@ -38,3 +36,5 @@ struct SerializableClass
   int myIntVal;
   float myFloatVal;
 };
+
+SERIALIZABLE(SerializableClass);

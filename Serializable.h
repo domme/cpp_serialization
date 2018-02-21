@@ -7,19 +7,6 @@
 #include <cassert>
 
 //---------------------------------------------------------------------------//
-  template <typename T>
-  class HasSerializeMemFn
-  {
-    typedef char Yes;
-    typedef long No;
-
-    template <typename C> static Yes Test(decltype(&C::Serialize));
-    template <typename C> static No Test(...);
-
-  public:
-     enum {value = sizeof(Test<T>(0)) == sizeof(Yes) };
-  };
-//---------------------------------------------------------------------------//
   class Serializer;
 //---------------------------------------------------------------------------//
 /* These are the basic data types the serializer switches over.
@@ -57,46 +44,6 @@
     EBaseDataType myBaseType;
     void* myUserData;  // pointer to meta-table for complex types
   };
-//---------------------------------------------------------------------------//
-  /** 
-  The Get_DataType template routes concrete C++-types to serialization-datatypes. 
-  It is further specialized down below and additional specializations can be added
-  if you feel the need for it (e.g. to handle your own (non-stl) container types or
-  other smart-pointer implementations. */
-  template<class T, typename IsEnumT = void, typename HasSerializationMethodT = void, typename IsSerializable = void>
-  struct Get_DataType { };  // Dummy base type, should never be instantiated
-//---------------------------------------------------------------------------//
-  // Specialization for enum types
-  template<class T>
-  struct Get_DataType<T, 
-      typename std::enable_if<std::is_enum<T>::value>::type>
-  {
-    static DataType get()
-    {
-      return DataType(EBaseDataType::Uint);
-    }
-  };
-//---------------------------------------------------------------------------//
-#define DECLARE_DATATYPE(T, ET) \
-  template<> \
-  struct Get_DataType<T> \
-  { \
-    static DataType get() \
-    { \
-      return DataType(EBaseDataType::ET); \
-    } \
-  };
-
-  // Base types (without meta-table)
-  DECLARE_DATATYPE(int, Int);
-  DECLARE_DATATYPE(unsigned int, Uint);
-  DECLARE_DATATYPE(float, Float);
-  DECLARE_DATATYPE(char, Char);
-  DECLARE_DATATYPE(const char*, CString);
-  DECLARE_DATATYPE(std::string, String);
-  DECLARE_DATATYPE(bool, Bool);
-  // ... Add more basic types if needed (e.g. uint8, 16, Vector- and matrix types,...)
-#undef DECLARE_DATATYPE
 //---------------------------------------------------------------------------//
   /**
   Below are several types of 'MetaTables', which are pure-virtual classes that are
@@ -182,13 +129,13 @@
       void Serialize(Serializer* aSerializer, void* anObject) override
       {
         std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        (*serializable)->_serialize(aSerializer);
+        (*serializable)->Serialize(aSerializer);
       }
 
       const char* GetTypeName(void* anObject) override
       {
         std::shared_ptr<T>* serializable = static_cast<std::shared_ptr<T>*>(anObject);
-        return (*serializable)->_getTypeName();
+        return (*serializable)->GetTypeName();
       }
 
       unsigned int GetHash(void* anObject) override
@@ -292,26 +239,29 @@
 //---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
-  template<class T>
-  struct Get_DataType<T,
-    void,  // No enum type
-    std::enable_if_t<HasSerializeMemFn<T>::value>> // Serialize()
+/**
+The Get_DataType template routes concrete C++-types to serialization-datatypes.
+It is further specialized down below and additional specializations can be added
+if you feel the need for it (e.g. to handle your own (non-stl) container types or
+other smart-pointer implementations. */
+//---------------------------------------------------------------------------//
+  template<class T, typename IsEnumT = void>
+  struct Get_DataType
   {
     static DataType get()
     {
       return DataType(EBaseDataType::StructOrClass, &Internal::MetaTableStructOrClassImpl<T>::ourVTable);
     }
-  };
+  };  // Dummy base type, should never be instantiated
 //---------------------------------------------------------------------------//
+// Specialization for enum types
   template<class T>
-  struct Get_DataType<std::shared_ptr<T>,
-    void,  // No enum type
-    std::enable_if_t<HasSerializeMemFn<T>::value>, // Serialize()
-    std::enable_if_t<T::IsSerializable::Val>>  // A serilizable instance
+  struct Get_DataType<T,
+    typename std::enable_if<std::is_enum<T>::value>::type>
   {
     static DataType get()
     {
-      return DataType(EBaseDataType::Serializable, &Internal::MetaTableSerializableImpl<std::shared_ptr<T>>::ourVTable);
+      return DataType(EBaseDataType::Uint);
     }
   };
 //---------------------------------------------------------------------------//
@@ -333,9 +283,34 @@
     }
   };
 //---------------------------------------------------------------------------//
-#define SERIALIZABLE() \
-public: \
-  enum IsSerializable { Val = true }; \
-  const char* _getTypeName() const { return this->GetTypeName(); } \
-  void _serialize(Serializer* aSerializer) { this->Serialize(aSerializer); }
+#define DECLARE_DATATYPE(T, ET) \
+  template<> \
+  struct Get_DataType<T> \
+  { \
+    static DataType get() \
+    { \
+      return DataType(EBaseDataType::ET); \
+    } \
+  };
+
+// Base types (without meta-table)
+  DECLARE_DATATYPE(int, Int);
+  DECLARE_DATATYPE(unsigned int, Uint);
+  DECLARE_DATATYPE(float, Float);
+  DECLARE_DATATYPE(char, Char);
+  DECLARE_DATATYPE(const char*, CString);
+  DECLARE_DATATYPE(std::string, String);
+  DECLARE_DATATYPE(bool, Bool);
+  // ... Add more basic types if needed (e.g. uint8, 16, Vector- and matrix types,...)
+#undef DECLARE_DATATYPE
+//---------------------------------------------------------------------------//
+#define SERIALIZABLE(T) \
+template<> \
+  struct Get_DataType<std::shared_ptr<T>> \
+  { \
+    static DataType get() \
+    { \
+      return DataType(EBaseDataType::Serializable, &Internal::MetaTableSerializableImpl<std::shared_ptr<T>>::ourVTable); \
+    } \
+  };
 //---------------------------------------------------------------------------//
